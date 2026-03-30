@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>ColdPepper</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      height: 100%;
+      height: -webkit-fill-available;
+    }
+
+    body {
+      background: #0a0a0a;
+      width: 100vw;
+      height: 100vh;
+      height: -webkit-fill-available;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #signup-form {
+      position: fixed;
+      bottom: 40px;
+      bottom: calc(40px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 420px;
+      padding: 0 24px;
+    }
+
+    #signup-form .form-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #signup-form input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      padding: 11px 14px;
+      color: #fff;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 16px; /* prevents iOS auto-zoom on focus */
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #signup-form input::placeholder {
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 12px;
+    }
+
+    #signup-form input:focus {
+      border-color: rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    #signup-form button {
+      width: 100%;
+      padding: 14px;
+      background: #fff;
+      color: #0a0a0a;
+      border: none;
+      border-radius: 4px;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+      touch-action: manipulation;
+    }
+
+    #signup-form button:hover {
+      background: #e0e0e0;
+    }
+
+    #signup-form button:active {
+      background: #c8c8c8;
+    }
+
+    #signup-form .optional-tag {
+      font-size: 9px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      align-self: flex-start;
+      margin-top: -6px;
+      padding-left: 2px;
+    }
+
+    #signup-headline {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+      text-align: center;
+      width: 100%;
+    }
+
+    #form-success {
+      display: none;
+      color: rgba(255,255,255,0.6);
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    #logo {
+      position: fixed;
+      top: 32px;
+      top: calc(32px + env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+
+    #logo img {
+      width: 300px;
+      height: auto;
+      display: block;
+      filter: invert(1); /* white on dark bg */
+    }
+
+    @media (max-width: 480px) {
+      #logo {
+        top: calc(24px + env(safe-area-inset-top));
+      }
+      #logo img {
+        width: 220px;
+      }
+    }
+
+    /* Mobile: stack name/email vertically on narrow screens */
+    @media (max-width: 400px) {
+      #signup-form .form-row {
+        flex-direction: column;
+        gap: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <div id="logo">
+    <img src="ColdPepperLogo_blk_01.png" alt="ColdPepper" />
+  </div>
+
+  <div id="signup-form">
+    <p id="signup-headline">Sign Up For Updates on The Next Drop</p>
+    <div class="form-row">
+      <input type="text" id="field-name" placeholder="Name" autocomplete="off" required />
+      <input type="email" id="field-email" placeholder="Email" autocomplete="off" required />
+    </div>
+    <input type="tel" id="field-phone" placeholder="Phone (optional)" autocomplete="off" />
+    <span class="optional-tag">Optional</span>
+    <button type="button" onclick="handleSubmit()">Notify Me</button>
+    <p id="form-success">You're on the list.</p>
+  </div>
+
+  <script>
+    function handleSubmit() {
+      const name = document.getElementById('field-name').value.trim();
+      const email = document.getElementById('field-email').value.trim();
+      if (!name || !email) {
+        document.getElementById('field-name').style.borderColor = !name ? 'rgba(255,80,80,0.6)' : '';
+        document.getElementById('field-email').style.borderColor = !email ? 'rgba(255,80,80,0.6)' : '';
+        return;
+      }
+      // Replace with your form endpoint as needed
+      document.getElementById('signup-form').style.opacity = '0';
+      document.getElementById('signup-form').style.transition = 'opacity 0.4s';
+      setTimeout(() => {
+        document.getElementById('signup-form').style.display = 'none';
+        document.getElementById('form-success').style.display = 'block';
+      }, 400);
+    }
+  </script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // Scene
+    const scene = new THREE.Scene();
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1, 3);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap at 2x for perf
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight.position.set(3, 5, 3);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    fillLight.position.set(-3, 2, -2);
+    scene.add(fillLight);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 1;
+    controls.maxDistance = 8;
+
+    // Model reference for animation
+    let model = null;
+
+    // Precipitation system
+    const CHILI_COUNT = 65;
+    const chilis = [];
+
+    // Viewport bounds in world space at z=0 (precipitation layer)
+    const SPAWN_Z = 0;
+    const TOP_Y = 5.5;
+    const BOTTOM_Y = -5.5;
+
+    function randomX() {
+      return (Math.random() - 0.5) * 14;
+    }
+
+    function randomSpeed() {
+      return 0.0144 + Math.random() * 0.0216;
+    }
+
+    function randomScale() {
+      return 0.08 + Math.random() * 0.08;
+    }
+
+    function randomRotSpeed() {
+      // Occasionally throw in a fast spinner for variety
+      const burst = Math.random() < 0.25 ? 3.5 : 1;
+      return (Math.random() - 0.5) * 0.07 * burst;
+    }
+
+    function initChiliData(instance) {
+      instance.userData.speed = randomSpeed();
+      instance.userData.rotSpeedX = randomRotSpeed();
+      instance.userData.rotSpeedY = randomRotSpeed();
+      instance.userData.rotSpeedZ = randomRotSpeed();
+      // Random initial orientation so no two look the same at spawn
+      instance.rotation.set(
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2,
+        Math.random() * Math.PI * 2
+      );
+      instance.position.set(randomX(), TOP_Y + Math.random() * 10, SPAWN_Z);
+    }
+
+    function spawnChilis(sourceGltf) {
+      for (let i = 0; i < CHILI_COUNT; i++) {
+        const clone = sourceGltf.scene.clone(true);
+        const sc = randomScale();
+        clone.scale.setScalar(sc);
+
+        // Center clone pivot
+        const box = new THREE.Box3().setFromObject(clone);
+        const center = box.getCenter(new THREE.Vector3());
+        clone.position.sub(center);
+
+        // Wrap in pivot group so centering + position work independently
+        const pivot = new THREE.Group();
+        pivot.add(clone);
+        initChiliData(pivot);
+        // Stagger initial positions
+        pivot.position.y = TOP_Y - (i / CHILI_COUNT) * (TOP_Y - BOTTOM_Y);
+        pivot.position.x = randomX();
+        pivot.position.z = SPAWN_Z - 1 - Math.random() * 2; // slight depth variation
+
+        scene.add(pivot);
+        chilis.push(pivot);
+      }
+    }
+
+    const loader = new GLTFLoader();
+
+    // Load main model
+    loader.load(
+      'ColdPepper_Shorts_01.glb',
+      (gltf) => {
+        model = gltf.scene;
+
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        model.position.sub(center);
+
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = (2 / maxDim) * 0.60;
+        model.scale.setScalar(scale);
+
+        scene.add(model);
+
+        camera.position.set(0, 0, 3);
+        controls.update();
+      },
+      undefined,
+      (error) => console.error('Error loading main GLB:', error)
+    );
+
+    // Load chili precipitation model
+    loader.load(
+      'ChiliFile_02.glb',
+      (gltf) => {
+        spawnChilis(gltf);
+      },
+      undefined,
+      (error) => console.error('Error loading chili GLB:', error)
+    );
+
+    // Resize handler — uses visualViewport for iOS browser chrome handling
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', onResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onResize);
+    }
+
+    // Animate
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Rotate main model
+      if (model) model.rotation.y += 0.003;
+
+      // Animate chili precipitation
+      for (const chili of chilis) {
+        chili.position.y -= chili.userData.speed;
+        chili.rotation.x += chili.userData.rotSpeedX;
+        chili.rotation.y += chili.userData.rotSpeedY;
+        chili.rotation.z += chili.userData.rotSpeedZ;
+
+        // Reset to top when out of view
+        if (chili.position.y < BOTTOM_Y) {
+          chili.position.y = TOP_Y;
+          chili.position.x = randomX();
+          chili.userData.speed = randomSpeed();
+          chili.userData.rotSpeedX = randomRotSpeed();
+          chili.userData.rotSpeedY = randomRotSpeed();
+          chili.userData.rotSpeedZ = randomRotSpeed();
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+
+</body>
+</html>
