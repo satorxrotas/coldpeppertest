@@ -286,6 +286,7 @@
 
     <div id="actions">
       <button id="shuffle"><span class="dot"></span>Shuffle</button>
+      <button id="spin"><span class="dot"></span><span id="spin-label">Spin: On</span></button>
       <button id="reset"><span class="dot"></span>Reset</button>
     </div>
 
@@ -318,38 +319,39 @@
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
     /* ════════════════════════════════════════════════════════════════
        CONFIG — edit this to add pieces.
        ────────────────────────────────────────────────────────────────
-       To add tops: push entries into the `tops` list below, e.g.
-         { name: 'Top 01', file: 'ColdPepper_Top_01.glb' }
-       Files are loaded from the site root (same folder as index.html
-       of the main page). Optional per-item tweaks:
-         scale:  1.1            → size multiplier
-         offset: [x, y, z]      → nudge position
-       Each category has a `layout` used when 2+ pieces are on screen:
-         y    → vertical position   size → how big the piece is drawn
+       Every piece is dressed onto the same invisible, rigged character.
+       Add a piece by pushing an entry into the right list below:
+         { name: 'Flannel 03', file: 'Flannel_3d_glb_Solid_03.glb' }
+
+       Files load from the site root (next to the main index.html).
+       Pieces are auto-fitted and auto-rigged, so they should be modelled
+       like the existing ones:
+         tops    → button-up / tee in an A-pose, front facing +Z, Y up
+         shorts  → standing shorts, front facing +Z, Y up
+       Optional per-item tweaks:
+         scale:  1.05          → size multiplier
+         offset: [x, y, z]     → nudge position (metres)
        ════════════════════════════════════════════════════════════════ */
     const CATEGORIES = [
       {
-        id: 'tops', label: 'Tops', optional: true,
-        layout: { y: 0.42, size: 1.1 },
+        id: 'tops', label: 'Tops', kind: 'top', optional: true,
         items: [
-          // { name: 'Top 01', file: 'ColdPepper_Top_01.glb' },
+          { name: 'Flannel 01', file: 'Flannel_3d_glb_Solid_01.glb' },
+          { name: 'Flannel 02', file: 'Flannel_3d_glb_Solid_02.glb' },
         ],
       },
       {
-        id: 'shorts', label: 'Shorts', optional: false,
-        layout: { y: -0.52, size: 0.95 },
+        id: 'shorts', label: 'Shorts', kind: 'bottom', optional: false,
         items: [
           { name: 'Shorts 01', file: 'ColdPepper_Shorts_01.glb' },
           { name: 'Shorts 02', file: 'ColdPepper_Shorts_02.glb' },
         ],
       },
     ];
-    const SOLO_LAYOUT = { y: 0.05, size: 1.6 };   // when only one piece is showing
 
     /* ── Password gate ──
        Stores a SHA-256 hash, not the plain password. This is a casual
@@ -396,15 +398,16 @@
     /* ════════════════════════════════════════════════════════════════
        APP — only starts after the gate is cleared
        ════════════════════════════════════════════════════════════════ */
-    function startApp() {
+    async function startApp() {
       const ASSET_BASE = new URL('../', document.baseURI);   // site root
       const assetUrl = (f) => new URL(f, ASSET_BASE).href;
+      const TAU = Math.PI * 2;
 
       /* ── Scene ── */
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
       const TARGET = new THREE.Vector3(0, -0.05, 0);
-      camera.position.set(0, 0.4, 4.2);
+      camera.position.set(0, 0.4, 4.4);
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -428,9 +431,7 @@
       controls.update();
 
       /* Platform */
-      const PLATFORM_Y = -1.1;
       const platform = new THREE.Group();
-      platform.position.y = PLATFORM_Y;
       const disc = new THREE.Mesh(
         new THREE.CylinderGeometry(1.1, 1.18, 0.1, 72),
         new THREE.MeshStandardMaterial({ color: 0x14181b, metalness: 0.85, roughness: 0.38 })
@@ -445,33 +446,234 @@
       ring2.rotation.x = Math.PI / 2; ring2.position.y = 0.055;
       platform.add(ring2);
 
-      // Soft glow pool on the platform
       const gc = document.createElement('canvas'); gc.width = gc.height = 256;
-      const g = gc.getContext('2d');
-      const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      const g2d = gc.getContext('2d');
+      const grad = g2d.createRadialGradient(128, 128, 0, 128, 128, 128);
       grad.addColorStop(0, 'rgba(143,220,255,0.28)'); grad.addColorStop(1, 'rgba(143,220,255,0)');
-      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      g2d.fillStyle = grad; g2d.fillRect(0, 0, 256, 256);
       const glow = new THREE.Mesh(
         new THREE.PlaneGeometry(2.6, 2.6),
         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(gc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
       );
       glow.rotation.x = -Math.PI / 2; glow.position.y = 0.06;
       platform.add(glow);
+      platform.position.y = -1.1;
       scene.add(platform);
 
-      /* Camera distance adapts to aspect so the platform always fits */
       function fitCamera() {
         const aspect = window.innerWidth / window.innerHeight;
         const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-        const dist = Math.max(4.4, 1.3 / (tanHalf * aspect));
+        const dist = Math.max(4.4, 1.12 / (tanHalf * aspect));
         const dir = camera.position.clone().sub(controls.target).normalize();
         camera.position.copy(controls.target).addScaledVector(dir, dist);
         controls.update();
       }
 
-      /* Outfit stack — one persistent group so rotation survives swaps */
-      const stack = new THREE.Group();
-      scene.add(stack);
+      /* ════════════════════════════════════════════════════════════
+         THE INVISIBLE CHARACTER
+         A 12-bone skeleton (metres, Y up, +Z facing the camera) that is
+         never drawn. Every garment is auto-skinned to it, so sleeves
+         follow the arms and shorts follow the hips and legs.
+         ════════════════════════════════════════════════════════════ */
+      const rig = new THREE.Group();
+      scene.add(rig);
+
+      const V = (x, y, z) => new THREE.Vector3(x, y, z);
+      const mirror = (v) => V(-v.x, v.y, v.z);
+
+      // Joint positions in the rest (A-)pose. Arm joints are measured off the flannels' sleeves.
+      const J = {
+        root: V(0, 0.97, 0), spine: V(0, 1.10, -0.005), chest: V(0, 1.29, -0.02),
+        neck: V(0, 1.56, -0.035), head: V(0, 1.70, -0.035),
+        shoulder: V(0.236, 1.435, -0.040), elbow: V(0.401, 1.263, -0.037), wrist: V(0.565, 1.092, -0.012),
+        hip: V(0.105, 0.95, 0), knee: V(0.11, 0.52, 0), ankle: V(0.11, 0.08, 0),
+      };
+
+      const BONE_NAMES = ['root', 'spine', 'chest', 'neck', 'uaL', 'faL', 'uaR', 'faR', 'thL', 'shL', 'thR', 'shR'];
+      const B = {};
+      const makeBone = (name, joint, parentJoint) => {
+        const b = new THREE.Bone(); b.name = name;
+        b.position.copy(joint).sub(parentJoint);
+        B[name] = b; return b;
+      };
+      const ORIGIN = V(0, 0, 0);
+      makeBone('root', J.root, ORIGIN);
+      makeBone('spine', J.spine, J.root);   B.root.add(B.spine);
+      makeBone('chest', J.chest, J.spine);  B.spine.add(B.chest);
+      makeBone('neck', J.neck, J.chest);    B.chest.add(B.neck);
+      for (const side of ['L', 'R']) {
+        const m = side === 'L' ? (v) => v : mirror;
+        makeBone('ua' + side, m(J.shoulder), J.chest);       B.chest.add(B['ua' + side]);
+        makeBone('fa' + side, m(J.elbow), m(J.shoulder));    B['ua' + side].add(B['fa' + side]);
+        makeBone('th' + side, m(J.hip), J.root);             B.root.add(B['th' + side]);
+        makeBone('sh' + side, m(J.knee), m(J.hip));          B['th' + side].add(B['sh' + side]);
+      }
+      rig.add(B.root);
+      const bones = BONE_NAMES.map((n) => B[n]);
+      rig.updateMatrixWorld(true);
+      const skeleton = new THREE.Skeleton(bones);          // rest pose captured here
+
+      // Capsule centre-lines used to compute skin weights
+      const seg = (a, b) => ({
+        ax: a.x, ay: a.y, az: a.z, dx: b.x - a.x, dy: b.y - a.y, dz: b.z - a.z,
+        inv: 1 / Math.max(1e-9, (b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2),
+      });
+      const SEGS = {
+        root: seg(V(0, 0.90, 0), V(0, 1.07, -0.005)),
+        spine: seg(V(0, 1.07, -0.005), J.chest),
+        chest: seg(J.chest, J.neck),
+        neck: seg(J.neck, J.head),
+        uaL: seg(J.shoulder, J.elbow), faL: seg(J.elbow, J.wrist),
+        uaR: seg(mirror(J.shoulder), mirror(J.elbow)), faR: seg(mirror(J.elbow), mirror(J.wrist)),
+        thL: seg(J.hip, J.knee), shL: seg(J.knee, J.ankle),
+        thR: seg(mirror(J.hip), mirror(J.knee)), shR: seg(mirror(J.knee), mirror(J.ankle)),
+      };
+      const SEG_LIST = BONE_NAMES.map((n) => SEGS[n]);
+      const idxOf = (names) => names.map((n) => BONE_NAMES.indexOf(n));
+      const ALLOWED = {
+        top: idxOf(['root', 'spine', 'chest', 'neck', 'uaL', 'faL', 'uaR', 'faR']),
+        bottom: idxOf(['root', 'spine', 'thL', 'shL', 'thR', 'shR']),
+      };
+
+      // Where each kind of garment sits on the body, and how big it is (metres per model unit)
+      const FIT = {
+        top:    { scale: 0.041, anchor: 'min', y: 0.90 },   // hem sits at this height
+        bottom: { scale: 0.095, anchor: 'max', y: 0.94 },   // top of waistband sits at this height
+      };
+
+      /* Auto-skin: weight every vertex to its nearest bones (inverse-distance, up to 4) */
+      function skinGeometry(geom, allowed) {
+        const pos = geom.attributes.position;
+        const n = pos.count, m = allowed.length;
+        const skinIndex = new Uint16Array(n * 4);
+        const skinWeight = new Float32Array(n * 4);
+        const w = new Float32Array(m);
+        for (let i = 0; i < n; i++) {
+          const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i);
+          for (let k = 0; k < m; k++) {
+            const s = SEG_LIST[allowed[k]];
+            let t = ((px - s.ax) * s.dx + (py - s.ay) * s.dy + (pz - s.az) * s.dz) * s.inv;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const ex = px - (s.ax + s.dx * t), ey = py - (s.ay + s.dy * t), ez = pz - (s.az + s.dz * t);
+            const d = Math.sqrt(ex * ex + ey * ey + ez * ez) + 0.02;
+            w[k] = 1 / (d * d * d);
+          }
+          let sum = 0;
+          for (let j = 0; j < 4; j++) {
+            let best = -1, bv = 0;
+            for (let k = 0; k < m; k++) if (w[k] > bv) { bv = w[k]; best = k; }
+            if (best < 0) break;
+            skinIndex[i * 4 + j] = allowed[best]; skinWeight[i * 4 + j] = bv; sum += bv; w[best] = 0;
+          }
+          for (let j = 0; j < 4; j++) skinWeight[i * 4 + j] /= sum;
+        }
+        geom.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndex, 4));
+        geom.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeight, 4));
+      }
+
+      /* Flat decal planes (patches) get draped onto the shirt surface so they never float or sink */
+      function conformDecals(parts, main, zc) {
+        const CELL = 0.5, R2 = 0.25;
+        const mp = main.geom.attributes.position;
+        const cells = new Map();
+        const keyOf = (cx, cy) => (cx + 4096) * 16384 + (cy + 4096);
+        for (let i = 0; i < mp.count; i++) {
+          const k = keyOf(Math.floor(mp.getX(i) / CELL), Math.floor(mp.getY(i) / CELL));
+          let a = cells.get(k); if (!a) cells.set(k, a = []); a.push(i);
+        }
+        for (const part of parts) {
+          if (part === main) continue;
+          part.geom.computeBoundingBox();
+          const bb = part.geom.boundingBox;
+          if (bb.max.z - bb.min.z > 0.05) continue;           // already draped over the surface
+          const p = part.geom.attributes.position;
+          for (let i = 0; i < p.count; i++) {
+            const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+            const front = z > zc;
+            const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+            const zs = [];
+            for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+              const a = cells.get(keyOf(cx + dx, cy + dy)); if (!a) continue;
+              for (const j of a) {
+                const ex = mp.getX(j) - x, ey = mp.getY(j) - y;
+                if (ex * ex + ey * ey <= R2) zs.push(mp.getZ(j));
+              }
+            }
+            if (zs.length < 4) continue;
+            zs.sort((a, b) => (front ? b - a : a - b));
+            const k = Math.min(4, zs.length);
+            let s = 0; for (let q = 0; q < k; q++) s += zs[q];
+            p.setZ(i, s / k + (front ? 0.04 : -0.04));
+          }
+          p.needsUpdate = true;
+        }
+      }
+
+      /* Turn a loaded GLB into rigged, skinned meshes on the shared skeleton */
+      function buildGarment(gltf, cat, item) {
+        const kind = cat.kind;
+        gltf.scene.updateMatrixWorld(true);
+        const parts = [];
+        gltf.scene.traverse((o) => {
+          if (!o.isMesh) return;
+          const geom = o.geometry.clone();
+          geom.applyMatrix4(o.matrixWorld);                    // bake node transforms
+          parts.push({ geom, material: o.material });
+        });
+        const main = parts.reduce((a, b) => (b.geom.attributes.position.count > a.geom.attributes.position.count ? b : a));
+        main.geom.computeBoundingBox();
+        const bb = main.geom.boundingBox;
+        const H = bb.max.y - bb.min.y, Wd = bb.max.x - bb.min.x;
+        const xc = (bb.min.x + bb.max.x) / 2;
+
+        // z-centre of the torso / hip band, so the garment is centred on the spine
+        const mp = main.geom.attributes.position;
+        const y0 = bb.min.y + (kind === 'top' ? 0.15 : 0.45) * H, y1 = bb.min.y + (kind === 'top' ? 0.35 : 0.70) * H;
+        const xLim = kind === 'top' ? 0.14 * Wd : Infinity;
+        let zmin = Infinity, zmax = -Infinity;
+        for (let i = 0; i < mp.count; i++) {
+          const y = mp.getY(i); if (y < y0 || y > y1 || Math.abs(mp.getX(i) - xc) > xLim) continue;
+          const z = mp.getZ(i); if (z < zmin) zmin = z; if (z > zmax) zmax = z;
+        }
+        const zc = isFinite(zmin) ? (zmin + zmax) / 2 : (bb.min.z + bb.max.z) / 2;
+
+        if (kind === 'top') conformDecals(parts, main, zc);
+
+        const f = FIT[kind];
+        const s = f.scale * (item.scale ?? 1);
+        const off = item.offset ?? [0, 0, 0];
+        const ty = f.y - (f.anchor === 'min' ? bb.min.y : bb.max.y) * s;
+        const fit = new THREE.Matrix4().makeScale(s, s, s).setPosition(-xc * s + off[0], ty + off[1], -zc * s + off[2]);
+
+        const group = new THREE.Group();
+        const materials = new Set();
+        const meshes = [];
+        let minY = Infinity, maxY = -Infinity, halfX = 0;
+        for (const part of parts) {
+          part.geom.applyMatrix4(fit);
+          part.geom.computeBoundingBox();
+          const b = part.geom.boundingBox;
+          minY = Math.min(minY, b.min.y); maxY = Math.max(maxY, b.max.y);
+          halfX = Math.max(halfX, Math.abs(b.min.x), Math.abs(b.max.x));
+          skinGeometry(part.geom, ALLOWED[kind]);
+
+          const m = part.material;
+          m.transparent = true;                                // lets the whole piece fade in
+          m.side = THREE.DoubleSide;
+          const isDecal = part !== main;
+          if (isDecal) { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; }
+          materials.add(m);
+
+          const sm = new THREE.SkinnedMesh(part.geom, m);
+          sm.frustumCulled = false;
+          sm.renderOrder = isDecal ? 1 : 0;
+          sm.bind(skeleton, new THREE.Matrix4());
+          group.add(sm); meshes.push(sm);
+        }
+        group.visible = false;
+        rig.add(group);
+        return { kind, group, meshes, materials, fade: 1, bounds: { minY, maxY, halfX: halfX * (kind === 'top' ? 0.9 : 1) } };
+      }
 
       /* ── State ── */
       const sel = {};            // categoryId → selected index (-1 = none)
@@ -480,58 +682,49 @@
       const minIdx = (c) => (c.optional ? -1 : 0);
 
       function resetSelection() {
-        for (const c of CATEGORIES) sel[c.id] = c.items.length && !c.optional ? 0 : -1;
-        // start on a category that already has a piece showing
+        for (const c of CATEGORIES) sel[c.id] = c.items.length ? 0 : -1;
         activeId = (usable().find(c => sel[c.id] >= 0) || usable()[0] || CATEGORIES[0]).id;
       }
       resetSelection();
 
-      /* ── Models ── */
-      const gltfCache = new Map();
-      const holders = {};        // categoryId → Group
-
-      function makeHolder(item) {
-        const src = gltfCache.get(item.file);
-        if (!src) return null;
-        const inner = cloneSkinned(src.scene);
-        const box = new THREE.Box3().setFromObject(inner);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        inner.position.sub(center);
-        const holder = new THREE.Group();
-        holder.add(inner);
-        holder.userData = {
-          maxDim: Math.max(size.x, size.y, size.z) || 1,
-          userScale: item.scale ?? 1,
-          offset: item.offset ?? [0, 0, 0],
-          born: performance.now(),
-          curY: 0, curS: 1, tgtY: 0, tgtS: 1,
-        };
-        return holder;
-      }
-
-      function applyLayout(snapId) {
-        const present = CATEGORIES.filter(c => holders[c.id]);
-        const solo = present.length === 1;
-        for (const c of present) {
-          const h = holders[c.id], u = h.userData;
-          const lay = solo ? SOLO_LAYOUT : c.layout;
-          u.tgtY = lay.y + u.offset[1];
-          u.tgtS = (lay.size / u.maxDim) * u.userScale;
-          if (c.id === snapId) { u.curY = u.tgtY; u.curS = u.tgtS; }
-        }
-      }
-
+      const garmentFor = new Map();   // file → garment
+      const shown = {};               // categoryId → garment currently on the character
       let flash = 0;
-      function syncCategory(cat, pulse = true) {
-        const old = holders[cat.id];
-        if (old) { stack.remove(old); delete holders[cat.id]; }
+
+      /* Framing: scale + lift the character so whatever is showing fills the stage */
+      const frame = { S: 1, y: 0, plat: -1.1 };
+      const frameT = { S: 1, y: 0, plat: -1.1 };
+      const H_T = 1.9, W_T = 1.9, Y_CENTER = 0.02, S_MAX = 3.3;
+      function updateFrameTargets() {
+        let minY = Infinity, maxY = -Infinity, halfX = 0;
+        for (const id in shown) {
+          const b = shown[id].bounds;
+          minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY); halfX = Math.max(halfX, b.halfX);
+        }
+        if (minY === Infinity) return;
+        const h = maxY - minY, w = halfX * 2;
+        const S = Math.min(H_T / h, W_T / w, S_MAX);
+        frameT.S = S;
+        frameT.y = Y_CENTER - S * (minY + maxY) / 2;
+        frameT.plat = Y_CENTER - (S * h) / 2 - 0.24;
+      }
+
+      const setOpacity = (g, v) => { for (const m of g.materials) m.opacity = v; };
+
+      function syncCategory(cat, { pulse = true, instant = false } = {}) {
+        const prev = shown[cat.id];
+        if (prev) { prev.group.visible = false; delete shown[cat.id]; }
         const idx = sel[cat.id];
         if (idx >= 0) {
-          const holder = makeHolder(cat.items[idx]);
-          if (holder) { holders[cat.id] = holder; stack.add(holder); }
+          const g = garmentFor.get(cat.items[idx].file);
+          if (g) {
+            g.group.visible = true;
+            g.fade = instant ? 1 : 0;
+            setOpacity(g, g.fade);
+            shown[cat.id] = g;
+          }
         }
-        applyLayout(cat.id);
+        updateFrameTargets();
         if (pulse) flash = 3;
       }
 
@@ -618,6 +811,14 @@
         renderUI();
       }
 
+      let spin = true, dragging = false, lastTouch = -1e9;
+      const spinLabel = $('spin-label');
+      $('spin').addEventListener('click', () => {
+        spin = !spin; spinLabel.textContent = spin ? 'Spin: On' : 'Spin: Off';
+      });
+      controls.addEventListener('start', () => { dragging = true; });
+      controls.addEventListener('end', () => { dragging = false; lastTouch = performance.now(); });
+
       $('prev').addEventListener('click', () => step(-1));
       $('next').addEventListener('click', () => step(1));
       $('shuffle').addEventListener('click', shuffle);
@@ -632,34 +833,54 @@
         e.preventDefault();
       });
 
-      /* ── Preload every model so swaps are instant ── */
+      /* ── Preload models ── */
       const loader = new GLTFLoader();
-      const files = [...new Set(CATEGORIES.flatMap(c => c.items.map(i => i.file)))];
+      const entries = CATEGORIES.flatMap(c => c.items.map(i => ({ cat: c, item: i })));
+      const files = [...new Set(entries.map(e => e.item.file))];
       const progress = new Map();
       const bar = $('loading-bar');
       const updateBar = () => {
         const sum = [...progress.values()].reduce((a, b) => a + b, 0);
-        bar.style.width = (files.length ? (sum / files.length) * 100 : 100) + '%';
+        bar.style.width = (files.length ? (sum / files.length) * 90 : 90) + '%';
       };
-
-      const loads = files.map((f) => new Promise((resolve) => {
-        progress.set(f, 0);
-        loader.load(
-          assetUrl(f),
-          (gltf) => { gltfCache.set(f, gltf); progress.set(f, 1); updateBar(); resolve(); },
-          (xhr) => { if (xhr.lengthComputable) { progress.set(f, xhr.loaded / xhr.total); updateBar(); } },
-          (err) => { console.error('Failed to load', f, err); progress.set(f, 1); updateBar(); resolve(); }
-        );
-      }));
 
       buildRail();
       renderUI(false);
 
-      Promise.all(loads).then(() => {
-        for (const c of CATEGORIES) syncCategory(c, false);
-        fitCamera();
-        document.body.classList.add('ready');
-      });
+      const gltfs = new Map();
+      await Promise.all(files.map((f) => new Promise((resolve) => {
+        progress.set(f, 0);
+        loader.load(
+          assetUrl(f),
+          (gltf) => { gltfs.set(f, gltf); progress.set(f, 1); updateBar(); resolve(); },
+          (xhr) => { if (xhr.lengthComputable) { progress.set(f, xhr.loaded / xhr.total); updateBar(); } },
+          (err) => { console.error('Failed to load', f, err); progress.set(f, 1); updateBar(); resolve(); }
+        );
+      })));
+
+      // Rig every garment (yield between pieces so the loading bar keeps moving)
+      for (const { cat, item } of entries) {
+        if (garmentFor.has(item.file)) continue;
+        const gltf = gltfs.get(item.file);
+        if (!gltf) continue;
+        await new Promise(r => setTimeout(r, 16));
+        try { garmentFor.set(item.file, buildGarment(gltf, cat, item)); }
+        catch (err) { console.error('Failed to rig', item.file, err); }
+        bar.style.width = (90 + 10 * garmentFor.size / files.length) + '%';
+      }
+
+      // Pre-warm shaders + textures so the first swap doesn't hitch
+      for (const g of garmentFor.values()) {
+        g.group.visible = true;
+        for (const m of g.materials) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) if (m[k]) renderer.initTexture(m[k]);
+      }
+      renderer.compile(scene, camera);
+      for (const g of garmentFor.values()) g.group.visible = false;
+
+      for (const c of CATEGORIES) syncCategory(c, { pulse: false, instant: true });
+      Object.assign(frame, frameT);
+      fitCamera();
+      document.body.classList.add('ready');
 
       /* ── Resize ── */
       function onResize() {
@@ -672,8 +893,49 @@
       window.addEventListener('resize', onResize);
       if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 
+      /* ════════════════════════════════════════════════════════════
+         CASUAL STANDING SWAY
+         Layered, slow, non-repeating motion: weight shifts from foot to
+         foot (hips tilt one way, shoulders counter-tilt), the torso
+         twists a touch, the chest breathes, the unloaded knee relaxes,
+         and the arms hang and lag behind the body like real arms do.
+         ════════════════════════════════════════════════════════════ */
+      const sway  = (t) => 0.70 * Math.sin(TAU * t / 3.8) + 0.30 * Math.sin(TAU * t / 9.1 + 1.3);
+      const twist = (t) => 0.65 * Math.sin(TAU * t / 5.3 + 0.6) + 0.35 * Math.sin(TAU * t / 11.7 + 2.0);
+      const ARM_DROP = 0.30;     // how far the A-pose arms are relaxed in towards the body (radians)
+
+      function pose(t) {
+        const s = sway(t), w = twist(t);
+        const br = Math.sin(TAU * t / 4.3);
+        const nd = Math.sin(TAU * t / 6.1 + 0.9);
+        const sL = sway(t - 0.30), wL = twist(t - 0.25);    // arms lag the torso
+
+        // Pelvis: shifts and tilts with the weight, slight yaw
+        B.root.position.set(J.root.x + s * 0.024, J.root.y - Math.abs(s) * 0.003 + br * 0.0006, J.root.z);
+        B.root.rotation.set(0, w * 0.060, s * 0.050);
+        // Spine / chest: counter-tilt so shoulders stay roughly level, twist the other way, breathe
+        B.spine.rotation.set(br * 0.004, -w * 0.036, -s * 0.042);
+        B.chest.rotation.set(-0.012 + br * 0.014, -w * 0.042, -s * 0.036);
+        B.chest.scale.set(1 + br * 0.004, 1 + br * 0.006, 1 + br * 0.010);
+        B.neck.rotation.set(0.01 + nd * 0.020, -w * 0.030 + nd * 0.015, s * 0.030);
+
+        // Arms: relaxed in from the A-pose, swinging passively
+        B.uaL.rotation.set(-0.02 + wL * 0.045, 0, -ARM_DROP + sL * 0.040 + br * 0.005);
+        B.uaR.rotation.set(-0.02 - wL * 0.045, 0, ARM_DROP + sL * 0.040 - br * 0.005);
+        B.faL.rotation.set(-(0.20 + 0.030 * Math.sin(TAU * t / 4.9 + 0.4)), 0, 0);
+        B.faR.rotation.set(-(0.20 + 0.030 * Math.sin(TAU * t / 5.7 + 2.1)), 0, 0);
+
+        // Legs: keep the feet planted under the shifting hips; the unloaded leg relaxes
+        const loadL = Math.max(0, s), loadR = Math.max(0, -s);   // loadL>0 → weight on +x leg
+        B.thL.rotation.set(-loadR * 0.060, 0, -s * 0.027 + loadR * 0.035);
+        B.shL.rotation.set(loadR * 0.120, 0, 0);
+        B.thR.rotation.set(-loadL * 0.060, 0, -s * 0.027 - loadL * 0.035);
+        B.shR.rotation.set(loadL * 0.120, 0, 0);
+      }
+
       /* ── Animate ── */
-      const easeOutBack = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+      let frozenT = null;
+      const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
       let last = performance.now();
 
       function animate() {
@@ -682,16 +944,21 @@
         const dt = Math.min((now - last) / 1000, 0.05);
         last = now;
 
-        stack.rotation.y += dt * 0.35;
+        pose(frozenT ?? now / 1000);
 
-        for (const id in holders) {
-          const h = holders[id], u = h.userData;
-          u.curY += (u.tgtY - u.curY) * 0.14;
-          u.curS += (u.tgtS - u.curS) * 0.14;
-          const age = (now - u.born) / 380;
-          const pop = age >= 1 ? 1 : Math.max(easeOutBack(age), 0.001);
-          h.scale.setScalar(u.curS * pop);
-          h.position.set(u.offset[0], u.curY + Math.sin(now / 900) * 0.025, u.offset[2]);
+        if (spin && !dragging && now - lastTouch > 2000) rig.rotation.y += dt * 0.30;
+
+        const k = 1 - Math.pow(0.001, dt);                 // frame-rate independent ease
+        frame.S += (frameT.S - frame.S) * k;
+        frame.y += (frameT.y - frame.y) * k;
+        frame.plat += (frameT.plat - frame.plat) * k;
+        rig.scale.setScalar(frame.S);
+        rig.position.y = frame.y;
+        platform.position.y = frame.plat;
+
+        for (const id in shown) {
+          const g = shown[id];
+          if (g.fade < 1) { g.fade = Math.min(1, g.fade + dt / 0.32); setOpacity(g, easeOutCubic(g.fade)); }
         }
 
         flash *= 0.9;
@@ -701,6 +968,19 @@
         renderer.render(scene, camera);
       }
       animate();
+
+      // Test hook — only exists when the URL ends in #debug
+      if (location.hash === '#debug') {
+        window.__cp = {
+          freeze: (t) => { frozenT = t; },
+          yaw: (a) => { spin = false; rig.rotation.y = a; },
+          sel: (id, i) => {
+            const c = CATEGORIES.find(x => x.id === id); sel[id] = i;
+            syncCategory(c, { pulse: false, instant: true }); renderUI(false); Object.assign(frame, frameT);
+          },
+          frame, B, shown, camera, controls,
+        };
+      }
     }
   </script>
 
