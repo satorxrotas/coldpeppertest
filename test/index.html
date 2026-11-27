@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>🥶🌶  Cold Peppers Collective 🥶🌶</title>
+  <link rel="icon" type="image/png" href="../logo_favicon_01.png" />
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --ink: #ffffff;
+      --dim: rgba(255, 255, 255, 0.45);
+      --cold: #8fdcff;
+      --pepper: #ff4a3d;
+      --chrome: linear-gradient(180deg, #eef1f3 0%, #a4adb4 42%, #5a6269 56%, #cfd6db 100%);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html { height: 100%; height: -webkit-fill-available; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      width: 100vw;
+      height: 100vh;
+      height: -webkit-fill-available;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    button { font-family: inherit; color: inherit; background: none; border: none; cursor: pointer; touch-action: manipulation; }
+
+    /* ───────── Backdrop ───────── */
+    #backdrop {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden;
+      background:
+        radial-gradient(ellipse 55% 50% at 50% 58%, rgba(143, 220, 255, 0.16), transparent 70%),
+        radial-gradient(ellipse 80% 60% at 50% 120%, rgba(255, 74, 61, 0.14), transparent 70%),
+        var(--bg);
+    }
+    .panel {
+      position: absolute; top: 14%; bottom: 10%; width: 22vw;
+      opacity: 0.5;
+    }
+    .panel.left  { left: -2vw;  background: linear-gradient(160deg, rgba(143,220,255,.20), rgba(143,220,255,0) 70%); clip-path: polygon(0 0, 100% 12%, 78% 100%, 0 100%); }
+    .panel.right { right: -2vw; background: linear-gradient(200deg, rgba(255,74,61,.20), rgba(255,74,61,0) 70%);   clip-path: polygon(0 12%, 100% 0, 100% 100%, 22% 100%); }
+
+    #ghost {
+      position: fixed; z-index: 1; left: 50%; top: 48%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(72px, 22vw, 320px);
+      font-weight: 900; font-style: italic; letter-spacing: -0.02em;
+      text-transform: uppercase; white-space: nowrap;
+      color: transparent; -webkit-text-stroke: 1px rgba(255, 255, 255, 0.07);
+      pointer-events: none;
+    }
+
+    #canvas-container { position: fixed; inset: 0; z-index: 2; }
+    #canvas-container canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    /* ───────── HUD ───────── */
+    #hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+    body.ready #hud { opacity: 1; }
+    #hud button, #hud .interactive { pointer-events: auto; }
+
+    #logo {
+      position: absolute; top: calc(22px + var(--safe-top)); left: 24px;
+    }
+    #logo img { width: 130px; height: auto; display: block; filter: invert(1); }
+
+    #top {
+      position: absolute; top: calc(18px + var(--safe-top)); left: 50%; transform: translateX(-50%);
+      width: min(640px, 92vw);
+      display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+    }
+
+    .title-bar {
+      height: 34px;
+      background: var(--chrome);
+      clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 22px 100%);
+      display: flex; align-items: center; justify-content: center;
+      color: #111; font-weight: 900; font-style: italic;
+      letter-spacing: 0.22em; font-size: 13px; text-transform: uppercase;
+    }
+
+    .banner {
+      height: 64px;
+      border: 3px solid transparent;
+      background: linear-gradient(#0d0f10, #0d0f10) padding-box, var(--chrome) border-box;
+      clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 16px 100%, 0 50%);
+      display: grid; grid-template-columns: 64px 1fr 64px; align-items: center;
+      position: relative;
+    }
+    .banner .arrow {
+      height: 100%; display: flex; align-items: center; justify-content: center;
+      color: #cfd6db; transition: color 0.15s, transform 0.15s;
+    }
+    .banner .arrow:hover { color: var(--cold); }
+    .banner .arrow:active { transform: scale(0.9); }
+    .banner .arrow svg { width: 26px; height: 26px; }
+    .banner .center { text-align: center; line-height: 1; overflow: hidden; }
+    .cat-label {
+      display: block; font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--dim); margin-bottom: 5px;
+    }
+    #item-name {
+      display: block; font-size: clamp(22px, 5vw, 30px); font-weight: 900; font-style: italic;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      background: linear-gradient(180deg, #fff6a8, #ffc21a 55%, #ff8a00);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      white-space: nowrap;
+    }
+    #item-name.pop { animation: pop 0.32s cubic-bezier(.2, 1.4, .4, 1); }
+    @keyframes pop { from { transform: translateY(8px) scale(0.92); opacity: 0; } to { transform: none; opacity: 1; } }
+    .banner.disabled .arrow { opacity: 0.2; pointer-events: none; }
+
+    /* Category rail */
+    #rail {
+      position: absolute; left: 24px; top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 10px; width: 190px;
+    }
+    .slot {
+      text-align: left; padding: 11px 14px 11px 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border-left: 3px solid rgba(255, 255, 255, 0.15);
+      clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .slot:hover { background: rgba(255, 255, 255, 0.08); }
+    .slot.active {
+      background: rgba(143, 220, 255, 0.12);
+      border-left-color: var(--cold);
+      transform: translateX(6px);
+    }
+    .slot.empty { opacity: 0.35; pointer-events: none !important; }
+    .slot .s-cat { display: block; font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--dim); }
+    .slot .s-name { display: block; margin-top: 4px; font-size: 14px; font-weight: 800; font-style: italic; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Bottom-left info */
+    #info {
+      position: absolute; left: 24px; bottom: calc(26px + var(--safe-bottom));
+      width: 230px;
+    }
+    #info .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+    #info .row b { color: var(--ink); font-weight: 800; }
+    #segments { display: flex; gap: 4px; }
+    #segments i {
+      flex: 1; height: 8px; max-width: 28px;
+      background: rgba(255, 255, 255, 0.12);
+      transform: skewX(-24deg);
+      transition: background 0.2s;
+    }
+    #segments i.on { background: linear-gradient(90deg, var(--cold), #fff); }
+
+    /* Bottom-right actions */
+    #actions {
+      position: absolute; right: 24px; bottom: calc(26px + var(--safe-bottom));
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+    }
+    #actions button {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; font-weight: 800; font-style: italic;
+      letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.8);
+      padding: 6px 0; transition: color 0.15s, transform 0.15s;
+    }
+    #actions button:hover { color: var(--cold); }
+    #actions button:active { transform: scale(0.95); }
+    #actions .dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid currentColor; position: relative;
+    }
+    #actions .dot::after { content: ''; position: absolute; inset: 2px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+
+    #hint {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      bottom: calc(26px + var(--safe-bottom));
+      font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: rgba(255,255,255,0.4);
+      white-space: nowrap; text-shadow: 0 0 8px #000;
+    }
+
+    /* ───────── Loading ───────── */
+    #loading {
+      position: fixed; inset: 0; z-index: 20; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      pointer-events: none; transition: opacity 0.4s;
+    }
+    body.unlocked:not(.ready) #loading { display: flex; }
+    #loading span { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--dim); }
+    #loading .bar { width: 160px; height: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #loading .bar i { display: block; height: 100%; width: 0; background: #fff; transition: width 0.2s; }
+
+    /* ───────── Password gate ───────── */
+    #gate {
+      position: fixed; inset: 0; z-index: 100; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+      padding: 24px; transition: opacity 0.5s;
+    }
+    body.unlocked #gate { opacity: 0; pointer-events: none; }
+    #gate img { width: 240px; max-width: 70vw; height: auto; filter: invert(1); }
+    #gate form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 320px; }
+    #gate input {
+      width: 100%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px; padding: 12px 14px; color: #fff; font-family: var(--font);
+      font-size: 16px; letter-spacing: 0.12em; text-align: center; outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      -webkit-appearance: none; appearance: none;
+    }
+    #gate input::placeholder { color: rgba(255,255,255,0.35); font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em; }
+    #gate input:focus { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.1); }
+    #gate button {
+      padding: 14px; background: #fff; color: #0a0a0a; border-radius: 4px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+      transition: background 0.2s;
+    }
+    #gate button:hover { background: #e0e0e0; }
+    #gate button:active { background: #c8c8c8; }
+    #gate-error { min-height: 14px; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--pepper); text-align: center; }
+    #gate form.shake { animation: shake 0.35s; }
+    @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+
+    /* ───────── Mobile ───────── */
+    @media (max-width: 760px) {
+      #logo { display: none; }
+      .banner { height: 58px; grid-template-columns: 52px 1fr 52px; }
+      #rail {
+        left: 50%; top: auto; bottom: calc(92px + var(--safe-bottom));
+        transform: translateX(-50%); flex-direction: row; width: min(420px, 92vw);
+      }
+      .slot { flex: 1; padding: 9px 12px; }
+      .slot.active { transform: translateY(-4px); }
+      #info { left: 20px; width: 150px; bottom: calc(22px + var(--safe-bottom)); }
+      #actions { right: 20px; bottom: calc(14px + var(--safe-bottom)); gap: 2px; }
+      #hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="backdrop">
+    <div class="panel left"></div>
+    <div class="panel right"></div>
+  </div>
+  <div id="ghost"></div>
+  <div id="canvas-container"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="logo"><img src="../ColdPepperLogo_blk_01.png" alt="ColdPepper" /></div>
+
+    <div id="top">
+      <div class="title-bar">Select Your Fit</div>
+      <div class="banner" id="banner">
+        <button class="arrow" id="prev" aria-label="Previous item">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 4 6 12l9.5 8z"/></svg>
+        </button>
+        <div class="center">
+          <span class="cat-label" id="cat-label"></span>
+          <span id="item-name"></span>
+        </div>
+        <button class="arrow" id="next" aria-label="Next item">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 4 18 12l-9.5 8z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="rail"></div>
+
+    <div id="info">
+      <div class="row"><span id="info-cat"></span><b id="info-count"></b></div>
+      <div id="segments"></div>
+    </div>
+
+    <div id="actions">
+      <button id="shuffle"><span class="dot"></span>Shuffle</button>
+      <button id="reset"><span class="dot"></span>Reset</button>
+    </div>
+
+    <div id="hint">← → change item &nbsp;·&nbsp; ↑ ↓ change piece &nbsp;·&nbsp; drag to rotate</div>
+  </div>
+
+  <div id="loading"><span>Loading</span><div class="bar"><i id="loading-bar"></i></div></div>
+
+  <!-- Password gate -->
+  <div id="gate">
+    <img src="../ColdPepperLogo_blk_01.png" alt="ColdPepper" />
+    <form id="gate-form" autocomplete="off">
+      <input id="gate-input" type="password" placeholder="Password" autocomplete="off"
+             autocapitalize="off" autocorrect="off" spellcheck="false" autofocus />
+      <button type="submit">Enter</button>
+      <div id="gate-error" role="alert"></div>
+    </form>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+
+    /* ════════════════════════════════════════════════════════════════
+       CONFIG — edit this to add pieces.
+       ────────────────────────────────────────────────────────────────
+       To add tops: push entries into the `tops` list below, e.g.
+         { name: 'Top 01', file: 'ColdPepper_Top_01.glb' }
+       Files are loaded from the site root (same folder as index.html
+       of the main page). Optional per-item tweaks:
+         scale:  1.1            → size multiplier
+         offset: [x, y, z]      → nudge position
+       Each category has a `layout` used when 2+ pieces are on screen:
+         y    → vertical position   size → how big the piece is drawn
+       ════════════════════════════════════════════════════════════════ */
+    const CATEGORIES = [
+      {
+        id: 'tops', label: 'Tops', optional: true,
+        layout: { y: 0.42, size: 1.1 },
+        items: [
+          // { name: 'Top 01', file: 'ColdPepper_Top_01.glb' },
+        ],
+      },
+      {
+        id: 'shorts', label: 'Shorts', optional: false,
+        layout: { y: -0.52, size: 0.95 },
+        items: [
+          { name: 'Shorts 01', file: 'ColdPepper_Shorts_01.glb' },
+          { name: 'Shorts 02', file: 'ColdPepper_Shorts_02.glb' },
+        ],
+      },
+    ];
+    const SOLO_LAYOUT = { y: 0.05, size: 1.6 };   // when only one piece is showing
+
+    /* ── Password gate ──
+       Stores a SHA-256 hash, not the plain password. This is a casual
+       front-door gate only: the site is static, so anyone who knows the
+       file URLs can still fetch them directly. */
+    const PW_HASH = '29b23a85b39eb5867e69f9c18a7640ca0634a237d1a1a4c946f56c2aa7f8416f';
+    const SESSION_KEY = 'cpc_test_unlocked';
+
+    async function sha256Hex(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    const gateForm = document.getElementById('gate-form');
+    const gateInput = document.getElementById('gate-input');
+    const gateError = document.getElementById('gate-error');
+    let appStarted = false;
+
+    function unlock() {
+      document.body.classList.add('unlocked');
+      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
+      if (!appStarted) { appStarted = true; startApp(); }
+    }
+
+    gateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!(window.crypto && crypto.subtle)) {
+        gateError.textContent = 'Open this page over https';
+        return;
+      }
+      const hash = await sha256Hex(gateInput.value.trim());
+      if (hash === PW_HASH) {
+        gateError.textContent = '';
+        unlock();
+      } else {
+        gateError.textContent = 'Wrong password';
+        gateInput.value = '';
+        gateForm.classList.remove('shake'); void gateForm.offsetWidth; gateForm.classList.add('shake');
+      }
+    });
+
+    try { if (sessionStorage.getItem(SESSION_KEY) === '1') unlock(); } catch (e) {}
+
+    /* ════════════════════════════════════════════════════════════════
+       APP — only starts after the gate is cleared
+       ════════════════════════════════════════════════════════════════ */
+    function startApp() {
+      const ASSET_BASE = new URL('../', document.baseURI);   // site root
+      const assetUrl = (f) => new URL(f, ASSET_BASE).href;
+
+      /* ── Scene ── */
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+      const TARGET = new THREE.Vector3(0, -0.05, 0);
+      camera.position.set(0, 0.4, 4.2);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+      const key = new THREE.DirectionalLight(0xffffff, 2.5); key.position.set(3, 5, 3); scene.add(key);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.8); fill.position.set(-3, 2, -2); scene.add(fill);
+      const rim = new THREE.DirectionalLight(0x8fdcff, 1.6); rim.position.set(0, 2, -4); scene.add(rim);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.copy(TARGET);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.enablePan = false;
+      controls.enableZoom = false;
+      controls.minPolarAngle = Math.PI * 0.36;
+      controls.maxPolarAngle = Math.PI * 0.58;
+      controls.update();
+
+      /* Platform */
+      const PLATFORM_Y = -1.1;
+      const platform = new THREE.Group();
+      platform.position.y = PLATFORM_Y;
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.1, 1.18, 0.1, 72),
+        new THREE.MeshStandardMaterial({ color: 0x14181b, metalness: 0.85, roughness: 0.38 })
+      );
+      platform.add(disc);
+      const ringMat = new THREE.MeshStandardMaterial({ color: 0x8fdcff, emissive: 0x8fdcff, emissiveIntensity: 0.9 });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.04, 0.014, 16, 160), ringMat);
+      ring.rotation.x = Math.PI / 2; ring.position.y = 0.055;
+      platform.add(ring);
+      const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.008, 12, 128),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
+      ring2.rotation.x = Math.PI / 2; ring2.position.y = 0.055;
+      platform.add(ring2);
+
+      // Soft glow pool on the platform
+      const gc = document.createElement('canvas'); gc.width = gc.height = 256;
+      const g = gc.getContext('2d');
+      const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0, 'rgba(143,220,255,0.28)'); grad.addColorStop(1, 'rgba(143,220,255,0)');
+      g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+      const glow = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.6, 2.6),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(gc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      glow.rotation.x = -Math.PI / 2; glow.position.y = 0.06;
+      platform.add(glow);
+      scene.add(platform);
+
+      /* Camera distance adapts to aspect so the platform always fits */
+      function fitCamera() {
+        const aspect = window.innerWidth / window.innerHeight;
+        const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const dist = Math.max(4.4, 1.3 / (tanHalf * aspect));
+        const dir = camera.position.clone().sub(controls.target).normalize();
+        camera.position.copy(controls.target).addScaledVector(dir, dist);
+        controls.update();
+      }
+
+      /* Outfit stack — one persistent group so rotation survives swaps */
+      const stack = new THREE.Group();
+      scene.add(stack);
+
+      /* ── State ── */
+      const sel = {};            // categoryId → selected index (-1 = none)
+      let activeId = null;
+      const usable = () => CATEGORIES.filter(c => c.items.length);
+      const minIdx = (c) => (c.optional ? -1 : 0);
+
+      function resetSelection() {
+        for (const c of CATEGORIES) sel[c.id] = c.items.length && !c.optional ? 0 : -1;
+        // start on a category that already has a piece showing
+        activeId = (usable().find(c => sel[c.id] >= 0) || usable()[0] || CATEGORIES[0]).id;
+      }
+      resetSelection();
+
+      /* ── Models ── */
+      const gltfCache = new Map();
+      const holders = {};        // categoryId → Group
+
+      function makeHolder(item) {
+        const src = gltfCache.get(item.file);
+        if (!src) return null;
+        const inner = cloneSkinned(src.scene);
+        const box = new THREE.Box3().setFromObject(inner);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        inner.position.sub(center);
+        const holder = new THREE.Group();
+        holder.add(inner);
+        holder.userData = {
+          maxDim: Math.max(size.x, size.y, size.z) || 1,
+          userScale: item.scale ?? 1,
+          offset: item.offset ?? [0, 0, 0],
+          born: performance.now(),
+          curY: 0, curS: 1, tgtY: 0, tgtS: 1,
+        };
+        return holder;
+      }
+
+      function applyLayout(snapId) {
+        const present = CATEGORIES.filter(c => holders[c.id]);
+        const solo = present.length === 1;
+        for (const c of present) {
+          const h = holders[c.id], u = h.userData;
+          const lay = solo ? SOLO_LAYOUT : c.layout;
+          u.tgtY = lay.y + u.offset[1];
+          u.tgtS = (lay.size / u.maxDim) * u.userScale;
+          if (c.id === snapId) { u.curY = u.tgtY; u.curS = u.tgtS; }
+        }
+      }
+
+      let flash = 0;
+      function syncCategory(cat, pulse = true) {
+        const old = holders[cat.id];
+        if (old) { stack.remove(old); delete holders[cat.id]; }
+        const idx = sel[cat.id];
+        if (idx >= 0) {
+          const holder = makeHolder(cat.items[idx]);
+          if (holder) { holders[cat.id] = holder; stack.add(holder); }
+        }
+        applyLayout(cat.id);
+        if (pulse) flash = 3;
+      }
+
+      /* ── UI ── */
+      const $ = (id) => document.getElementById(id);
+      const nameEl = $('item-name'), catEl = $('cat-label'), ghostEl = $('ghost');
+      const railEl = $('rail'), bannerEl = $('banner');
+
+      function itemName(cat) {
+        const i = sel[cat.id];
+        return i >= 0 ? cat.items[i].name : (cat.items.length ? 'None' : 'Coming Soon');
+      }
+
+      function buildRail() {
+        railEl.innerHTML = '';
+        for (const c of CATEGORIES) {
+          const b = document.createElement('button');
+          b.className = 'slot interactive'; b.dataset.id = c.id;
+          b.innerHTML = '<span class="s-cat"></span><span class="s-name"></span>';
+          b.addEventListener('click', () => { if (c.items.length) { activeId = c.id; renderUI(false); } });
+          railEl.appendChild(b);
+        }
+      }
+
+      function renderUI(animateName = true) {
+        const cat = CATEGORIES.find(c => c.id === activeId);
+        catEl.textContent = cat.label;
+        nameEl.textContent = itemName(cat);
+        ghostEl.textContent = sel[cat.id] >= 0 ? itemName(cat) : cat.label;
+        bannerEl.classList.toggle('disabled', !cat.items.length);
+        if (animateName) { nameEl.classList.remove('pop'); void nameEl.offsetWidth; nameEl.classList.add('pop'); }
+
+        for (const b of railEl.children) {
+          const c = CATEGORIES.find(x => x.id === b.dataset.id);
+          b.classList.toggle('active', c.id === activeId);
+          b.classList.toggle('empty', !c.items.length);
+          b.querySelector('.s-cat').textContent = c.label;
+          b.querySelector('.s-name').textContent = itemName(c);
+        }
+
+        const lo = minIdx(cat), total = cat.items.length + (cat.optional ? 1 : 0);
+        $('info-cat').textContent = cat.label;
+        $('info-count').textContent = cat.items.length
+          ? String(sel[cat.id] - lo + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0')
+          : '— / —';
+        const seg = $('segments'); seg.innerHTML = '';
+        for (let i = 0; i < total; i++) {
+          const el = document.createElement('i');
+          if (cat.items.length && i === sel[cat.id] - lo) el.className = 'on';
+          seg.appendChild(el);
+        }
+      }
+
+      function step(dir) {
+        const cat = CATEGORIES.find(c => c.id === activeId);
+        if (!cat.items.length) return;
+        const lo = minIdx(cat), hi = cat.items.length - 1;
+        let v = sel[cat.id] + dir;
+        if (v > hi) v = lo; if (v < lo) v = hi;
+        sel[cat.id] = v;
+        syncCategory(cat);
+        renderUI();
+      }
+
+      function stepCategory(dir) {
+        const list = usable(); if (list.length < 2) return;
+        const i = list.findIndex(c => c.id === activeId);
+        activeId = list[(i + dir + list.length) % list.length].id;
+        renderUI(false);
+      }
+
+      function shuffle() {
+        for (const c of usable()) {
+          const lo = minIdx(c);
+          sel[c.id] = lo + Math.floor(Math.random() * (c.items.length - lo));
+          syncCategory(c);
+        }
+        renderUI();
+      }
+
+      function reset() {
+        resetSelection();
+        for (const c of CATEGORIES) syncCategory(c);
+        renderUI();
+      }
+
+      $('prev').addEventListener('click', () => step(-1));
+      $('next').addEventListener('click', () => step(1));
+      $('shuffle').addEventListener('click', shuffle);
+      $('reset').addEventListener('click', reset);
+      window.addEventListener('keydown', (e) => {
+        if (!document.body.classList.contains('ready')) return;
+        if (e.key === 'ArrowLeft') step(-1);
+        else if (e.key === 'ArrowRight') step(1);
+        else if (e.key === 'ArrowUp') stepCategory(-1);
+        else if (e.key === 'ArrowDown') stepCategory(1);
+        else return;
+        e.preventDefault();
+      });
+
+      /* ── Preload every model so swaps are instant ── */
+      const loader = new GLTFLoader();
+      const files = [...new Set(CATEGORIES.flatMap(c => c.items.map(i => i.file)))];
+      const progress = new Map();
+      const bar = $('loading-bar');
+      const updateBar = () => {
+        const sum = [...progress.values()].reduce((a, b) => a + b, 0);
+        bar.style.width = (files.length ? (sum / files.length) * 100 : 100) + '%';
+      };
+
+      const loads = files.map((f) => new Promise((resolve) => {
+        progress.set(f, 0);
+        loader.load(
+          assetUrl(f),
+          (gltf) => { gltfCache.set(f, gltf); progress.set(f, 1); updateBar(); resolve(); },
+          (xhr) => { if (xhr.lengthComputable) { progress.set(f, xhr.loaded / xhr.total); updateBar(); } },
+          (err) => { console.error('Failed to load', f, err); progress.set(f, 1); updateBar(); resolve(); }
+        );
+      }));
+
+      buildRail();
+      renderUI(false);
+
+      Promise.all(loads).then(() => {
+        for (const c of CATEGORIES) syncCategory(c, false);
+        fitCamera();
+        document.body.classList.add('ready');
+      });
+
+      /* ── Resize ── */
+      function onResize() {
+        const w = window.innerWidth, h = window.innerHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+        fitCamera();
+      }
+      window.addEventListener('resize', onResize);
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+
+      /* ── Animate ── */
+      const easeOutBack = (x) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+      let last = performance.now();
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const now = performance.now();
+        const dt = Math.min((now - last) / 1000, 0.05);
+        last = now;
+
+        stack.rotation.y += dt * 0.35;
+
+        for (const id in holders) {
+          const h = holders[id], u = h.userData;
+          u.curY += (u.tgtY - u.curY) * 0.14;
+          u.curS += (u.tgtS - u.curS) * 0.14;
+          const age = (now - u.born) / 380;
+          const pop = age >= 1 ? 1 : Math.max(easeOutBack(age), 0.001);
+          h.scale.setScalar(u.curS * pop);
+          h.position.set(u.offset[0], u.curY + Math.sin(now / 900) * 0.025, u.offset[2]);
+        }
+
+        flash *= 0.9;
+        ringMat.emissiveIntensity = 0.9 + flash;
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+  </script>
+
+</body>
+</html>
