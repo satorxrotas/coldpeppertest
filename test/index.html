@@ -356,6 +356,13 @@
        ════════════════════════════════════════════════════════════════ */
     const CATEGORIES = [
       {
+        id: 'headwear', label: 'Headwear', kind: 'head', optional: true,
+        items: [
+          { name: 'Beanie Beige', file: 'beanie_beige_01.glb' },
+          { name: 'Beanie Black', file: 'beanie_black_01.glb' },
+        ],
+      },
+      {
         id: 'tops', label: 'Tops', kind: 'top', optional: true,
         items: [
           { name: 'Flannel 01', file: 'Flannel_3d_glb_Solid_01.glb' },
@@ -551,12 +558,14 @@
       const ALLOWED = {
         top: idxOf(['root', 'spine', 'chest', 'neck', 'uaL', 'faL', 'uaR', 'faR']),
         bottom: idxOf(['root', 'spine', 'thL', 'shL', 'thR', 'shR']),
+        head: idxOf(['neck']),                       // hats ride the head rigidly
       };
 
       // Where each kind of garment sits on the body, and how big it is (metres per model unit)
       const FIT = {
-        top:    { scale: 0.041, anchor: 'min', y: 0.86 },   // hem sits at this height
-        bottom: { scale: 0.092, anchor: 'max', y: 0.98 },   // top of waistband sits at this height
+        top:    { scale: 0.041, anchor: 'min', y: 0.82 },   // hem sits at this height (a flannel hangs well below the waistband)
+        bottom: { scale: 0.092, anchor: 'max', y: 1.02 },   // top of waistband sits at this height
+        head:   { scale: 0.0245, anchor: 'max', y: 1.79 },  // crown of the hat sits at this height
       };
 
       /* Auto-skin: weight every vertex to its nearest bones (inverse-distance, up to 4) */
@@ -653,7 +662,7 @@
           const y = mp.getY(i); if (y < y0 || y > y1 || Math.abs(mp.getX(i) - xc) > xLim) continue;
           const z = mp.getZ(i); if (z < zmin) zmin = z; if (z > zmax) zmax = z;
         }
-        const zc = isFinite(zmin) ? (zmin + zmax) / 2 : (bb.min.z + bb.max.z) / 2;
+        const zc = kind === 'head' || !isFinite(zmin) ? (bb.min.z + bb.max.z) / 2 : (zmin + zmax) / 2;
 
         if (kind === 'top') conformDecals(parts, main, zc);
 
@@ -833,8 +842,9 @@
 
       /* Arrows beside each piece: one pair for tops, one for shorts, following the garment's height */
       const ZONES = {            // body-space boxes (metres) used for arrow placement and tap targets
-        top:    { minY: 0.88, maxY: 1.70, halfX: 0.60, anchorY: 1.28 },
-        bottom: { minY: 0.50, maxY: 0.95, halfX: 0.28, anchorY: 0.74 },
+        head:   { minY: 1.56, maxY: 1.88, halfX: 0.20, anchorY: 1.72 },
+        top:    { minY: 0.84, maxY: 1.66, halfX: 0.60, anchorY: 1.24 },
+        bottom: { minY: 0.52, maxY: 1.00, halfX: 0.28, anchorY: 0.76 },
       };
       const _v = new THREE.Vector3();
       const toScreen = (x, y, z) => {
