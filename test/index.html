@@ -356,14 +356,14 @@
        ════════════════════════════════════════════════════════════════ */
     const CATEGORIES = [
       {
-        id: 'headwear', label: 'Headwear', kind: 'head', optional: true,
+        id: 'headwear', label: 'Headwear', kind: 'head', optional: false,
         items: [
           { name: 'Beanie Beige', file: 'beanie_beige_01.glb' },
           { name: 'Beanie Black', file: 'beanie_black_01.glb' },
         ],
       },
       {
-        id: 'tops', label: 'Tops', kind: 'top', optional: true,
+        id: 'tops', label: 'Tops', kind: 'top', optional: false,
         items: [
           { name: 'Flannel 01', file: 'Flannel_3d_glb_Solid_01.glb' },
           { name: 'Flannel 02', file: 'Flannel_3d_glb_Solid_02.glb' },
@@ -565,7 +565,7 @@
       const FIT = {
         top:    { scale: 0.041, anchor: 'min', y: 0.82 },   // hem sits at this height (a flannel hangs well below the waistband)
         bottom: { scale: 0.092, anchor: 'max', y: 1.02 },   // top of waistband sits at this height
-        head:   { scale: 0.0245, anchor: 'max', y: 1.79 },  // crown of the hat sits at this height
+        head:   { scale: 0.0245, anchor: 'max', y: 1.825 },  // crown of the hat sits at this height
       };
 
       /* Auto-skin: weight every vertex to its nearest bones (inverse-distance, up to 4) */
