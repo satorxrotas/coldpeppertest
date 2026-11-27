@@ -192,6 +192,23 @@
       white-space: nowrap; text-shadow: 0 0 8px #000;
     }
 
+    /* ───────── Per-piece arrows (sit beside each garment) ───────── */
+    #piece-arrows { position: absolute; inset: 0; pointer-events: none; }
+    .pa {
+      position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid transparent; border-radius: 50%;
+      background: linear-gradient(rgba(13, 15, 16, 0.78), rgba(13, 15, 16, 0.78)) padding-box, var(--chrome) border-box;
+      color: #dfe6ea; opacity: 0; pointer-events: auto;
+      transition: opacity 0.4s, color 0.15s, transform 0.15s;
+    }
+    body.ready .pa { opacity: 0.8; }
+    .pa svg { width: 20px; height: 20px; }
+    .pa:hover { color: var(--cold); opacity: 1; }
+    .pa:active { transform: scale(0.9); }
+    .pa.active { color: var(--cold); opacity: 1; }
+    .pa.hidden { display: none; }
+
     /* ───────── Loading ───────── */
     #loading {
       position: fixed; inset: 0; z-index: 20; display: none;
@@ -278,6 +295,7 @@
     </div>
 
     <div id="rail"></div>
+    <div id="piece-arrows"></div>
 
     <div id="info">
       <div class="row"><span id="info-cat"></span><b id="info-count"></b></div>
@@ -290,7 +308,7 @@
       <button id="reset"><span class="dot"></span>Reset</button>
     </div>
 
-    <div id="hint">← → change item &nbsp;·&nbsp; ↑ ↓ change piece &nbsp;·&nbsp; drag to rotate</div>
+    <div id="hint">← → change item &nbsp;·&nbsp; ↑ ↓ change piece &nbsp;·&nbsp; tap a piece to swap &nbsp;·&nbsp; drag to rotate</div>
   </div>
 
   <div id="loading"><span>Loading</span><div class="bar"><i id="loading-bar"></i></div></div>
@@ -483,9 +501,9 @@
 
       // Joint positions in the rest (A-)pose. Arm joints are measured off the flannels' sleeves.
       const J = {
-        root: V(0, 0.97, 0), spine: V(0, 1.10, -0.005), chest: V(0, 1.29, -0.02),
-        neck: V(0, 1.56, -0.035), head: V(0, 1.70, -0.035),
-        shoulder: V(0.236, 1.435, -0.040), elbow: V(0.401, 1.263, -0.037), wrist: V(0.565, 1.092, -0.012),
+        root: V(0, 0.97, 0), spine: V(0, 1.08, -0.005), chest: V(0, 1.25, -0.02),
+        neck: V(0, 1.52, -0.035), head: V(0, 1.66, -0.035),
+        shoulder: V(0.236, 1.395, -0.040), elbow: V(0.401, 1.223, -0.037), wrist: V(0.565, 1.052, -0.012),
         hip: V(0.105, 0.95, 0), knee: V(0.11, 0.52, 0), ankle: V(0.11, 0.08, 0),
       };
 
@@ -519,8 +537,8 @@
         inv: 1 / Math.max(1e-9, (b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2),
       });
       const SEGS = {
-        root: seg(V(0, 0.90, 0), V(0, 1.07, -0.005)),
-        spine: seg(V(0, 1.07, -0.005), J.chest),
+        root: seg(V(0, 0.90, 0), V(0, 1.05, -0.005)),
+        spine: seg(V(0, 1.05, -0.005), J.chest),
         chest: seg(J.chest, J.neck),
         neck: seg(J.neck, J.head),
         uaL: seg(J.shoulder, J.elbow), faL: seg(J.elbow, J.wrist),
@@ -537,8 +555,8 @@
 
       // Where each kind of garment sits on the body, and how big it is (metres per model unit)
       const FIT = {
-        top:    { scale: 0.041, anchor: 'min', y: 0.90 },   // hem sits at this height
-        bottom: { scale: 0.095, anchor: 'max', y: 0.94 },   // top of waistband sits at this height
+        top:    { scale: 0.041, anchor: 'min', y: 0.86 },   // hem sits at this height
+        bottom: { scale: 0.092, anchor: 'max', y: 0.98 },   // top of waistband sits at this height
       };
 
       /* Auto-skin: weight every vertex to its nearest bones (inverse-distance, up to 4) */
@@ -732,6 +750,7 @@
       const $ = (id) => document.getElementById(id);
       const nameEl = $('item-name'), catEl = $('cat-label'), ghostEl = $('ghost');
       const railEl = $('rail'), bannerEl = $('banner');
+      const arrowEls = [];
 
       function itemName(cat) {
         const i = sel[cat.id];
@@ -755,6 +774,7 @@
         nameEl.textContent = itemName(cat);
         ghostEl.textContent = sel[cat.id] >= 0 ? itemName(cat) : cat.label;
         bannerEl.classList.toggle('disabled', !cat.items.length);
+        for (const a of arrowEls) a.el.classList.toggle('active', a.cat.id === activeId);
         if (animateName) { nameEl.classList.remove('pop'); void nameEl.offsetWidth; nameEl.classList.add('pop'); }
 
         for (const b of railEl.children) {
@@ -811,6 +831,78 @@
         renderUI();
       }
 
+      /* Arrows beside each piece: one pair for tops, one for shorts, following the garment's height */
+      const ZONES = {            // body-space boxes (metres) used for arrow placement and tap targets
+        top:    { minY: 0.88, maxY: 1.70, halfX: 0.60, anchorY: 1.28 },
+        bottom: { minY: 0.50, maxY: 0.95, halfX: 0.28, anchorY: 0.74 },
+      };
+      const _v = new THREE.Vector3();
+      const toScreen = (x, y, z) => {
+        _v.set(x, y, z); rig.localToWorld(_v); _v.project(camera);
+        return [(_v.x * 0.5 + 0.5) * window.innerWidth, (-_v.y * 0.5 + 0.5) * window.innerHeight];
+      };
+
+      function buildArrows() {
+        const host = $('piece-arrows'); host.innerHTML = '';
+        for (const c of CATEGORIES) for (const dir of [-1, 1]) {
+          const b = document.createElement('button');
+          b.className = 'pa'; b.dataset.cat = c.id;
+          b.setAttribute('aria-label', (dir < 0 ? 'Previous ' : 'Next ') + c.label.toLowerCase());
+          b.innerHTML = dir < 0
+            ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 4 6 12l9.5 8z"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 4 18 12l-9.5 8z"/></svg>';
+          b.addEventListener('click', () => { if (c.items.length) { activeId = c.id; step(dir); } });
+          host.appendChild(b); arrowEls.push({ el: b, cat: c, dir });
+        }
+      }
+
+      function placeArrows() {
+        const off = Math.min(window.innerWidth * 0.44, 280);
+        for (const a of arrowEls) {
+          const has = a.cat.items.length > 0;
+          a.el.classList.toggle('hidden', !has);
+          if (!has) continue;
+          const [cx, cy] = toScreen(0, ZONES[a.cat.kind].anchorY, 0);
+          const lo = 120, hi = window.innerHeight - 150;   /* keep clear of banner and bottom bar */
+          const y = Math.min(Math.max(cy, lo), hi);
+          const x = Math.min(Math.max(cx + a.dir * off, 28), window.innerWidth - 28);
+          a.el.style.left = x + 'px';
+          a.el.style.top = y + 'px';
+        }
+      }
+
+      /* Tap (or click) a piece to swap it: tops cycle tops, shorts cycle shorts */
+      function zoneRect(cat) {
+        const z = ZONES[cat.kind];
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const x of [-z.halfX, z.halfX]) for (const y of [z.minY, z.maxY]) for (const dz of [-0.25, 0.25]) {
+          const [px, py] = toScreen(x, y, dz);
+          x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+        }
+        return { x0, y0, x1, y1 };
+      }
+      function pieceAt(px, py) {
+        let best = null, bestD = Infinity;
+        for (const c of CATEGORIES) {
+          if (!c.items.length) continue;
+          const r = zoneRect(c), pad = 8;
+          if (px < r.x0 - pad || px > r.x1 + pad || py < r.y0 - pad || py > r.y1 + pad) continue;
+          const d = Math.abs(py - (r.y0 + r.y1) / 2);
+          if (d < bestD) { bestD = d; best = c; }
+        }
+        return best;
+      }
+      let tapDown = null;
+      renderer.domElement.addEventListener('pointerdown', (e) => { tapDown = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+      renderer.domElement.addEventListener('pointerup', (e) => {
+        if (!tapDown) return;
+        const moved = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y), dt = performance.now() - tapDown.t;
+        tapDown = null;
+        if (moved > 10 || dt > 600) return;                 // that was a drag, not a tap
+        const c = pieceAt(e.clientX, e.clientY);
+        if (c) { activeId = c.id; step(1); }
+      });
+
       let spin = true, dragging = false, lastTouch = -1e9;
       const spinLabel = $('spin-label');
       $('spin').addEventListener('click', () => {
@@ -845,6 +937,7 @@
       };
 
       buildRail();
+      buildArrows();
       renderUI(false);
 
       const gltfs = new Map();
@@ -955,6 +1048,7 @@
         rig.scale.setScalar(frame.S);
         rig.position.y = frame.y;
         platform.position.y = frame.plat;
+        placeArrows();
 
         for (const id in shown) {
           const g = shown[id];
@@ -979,6 +1073,7 @@
             syncCategory(c, { pulse: false, instant: true }); renderUI(false); Object.assign(frame, frameT);
           },
           frame, B, shown, camera, controls,
+          zones: () => Object.fromEntries(CATEGORIES.map(c => [c.id, zoneRect(c)])),
         };
       }
     }
